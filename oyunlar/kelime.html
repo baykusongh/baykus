@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kelime Avı | Baykuş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ortak/oyun.css">
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
+<style>
+.ipucu{text-align:center;max-width:460px}
+.ipucu .m{font-family:var(--serif);font-weight:700;font-size:clamp(1.8rem,7vw,2.5rem);line-height:1.1;color:var(--gold)}
+.ipucu .k{color:var(--ink-faint);font-size:.9rem;margin-top:4px}
+.yuvalar,.harfler{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;max-width:560px}
+.yuva{width:clamp(30px,9vw,46px);aspect-ratio:1;border-bottom:2.5px solid var(--gold-line);display:grid;place-items:center;font-weight:700;font-size:clamp(1.1rem,5vw,1.6rem)}
+.yuvalar.dogru .yuva{color:var(--good);border-color:var(--good)}
+.yuvalar.cevap .yuva{color:var(--ink-faint)}
+.harf{width:clamp(38px,11vw,54px);aspect-ratio:1;border-radius:12px;border:1.5px solid var(--gold-line);background:var(--surface);font-weight:700;font-size:clamp(1.1rem,5vw,1.5rem)}
+.harf:hover:not(:disabled){border-color:var(--gold)}
+.harf:disabled{opacity:.2;cursor:default}
+</style>
+</head>
+<body>
+<script>
+const KELIMELER = [{"w": "Solitude", "m": "Kendi başına kalma"}, {"w": "Resilience", "m": "Dayanıklılık"}, {"w": "Yearning", "m": "Derin özlem"}, {"w": "Longing", "m": "Hasret"}, {"w": "Vellichor", "m": "Eski kitapçı büyüsü"}, {"w": "Solivagant", "m": "Yalnız gezgin"}, {"w": "Serendipity", "m": "Mutlu tesadüf"}, {"w": "Ephemeral", "m": "Kısa ömürlü"}, {"w": "Petrichor", "m": "Yağmur kokusu"}, {"w": "Sonder", "m": "Herkesin bir hikâyesi var hissi"}, {"w": "Nostalgia", "m": "Nostalji"}, {"w": "Melancholy", "m": "Hüzün"}, {"w": "Euphoria", "m": "Coşku"}, {"w": "Eloquent", "m": "Etkili konuşan"}, {"w": "Ineffable", "m": "Tarifsiz"}, {"w": "Luminous", "m": "Işıl ışıl"}, {"w": "Wanderlust", "m": "Gezme tutkusu"}, {"w": "Ethereal", "m": "Dünya dışı zarafet"}, {"w": "Serene", "m": "Dingin"}, {"w": "Epiphany", "m": "Aydınlanma anı"}, {"w": "Limerence", "m": "Saplantılı aşk"}, {"w": "Halcyon", "m": "Huzurlu ve mutlu (geçmiş)"}, {"w": "Sanguine", "m": "İyimser"}, {"w": "Tenacity", "m": "Azim"}, {"w": "Benevolent", "m": "Hayırsever"}, {"w": "Candor", "m": "Açık sözlülük"}, {"w": "Empathy", "m": "Empati"}, {"w": "Gratitude", "m": "Minnettarlık"}, {"w": "Perseverance", "m": "Sebat"}, {"w": "Solace", "m": "Teselli"}, {"w": "Tranquility", "m": "Sükûnet"}, {"w": "Reverie", "m": "Hayale dalma"}, {"w": "Mellifluous", "m": "Kulağa tatlı gelen"}, {"w": "Enigma", "m": "Muamma"}, {"w": "Labyrinth", "m": "Labirent"}, {"w": "Catharsis", "m": "Arınma"}, {"w": "Ubiquitous", "m": "Her yerde olan"}, {"w": "Pensive", "m": "Dalgın"}, {"w": "Wistful", "m": "Buruk"}, {"w": "Zenith", "m": "Doruk"}, {"w": "Oblivion", "m": "Unutuluş"}, {"w": "Cherish", "m": "Değer vermek"}, {"w": "Linger", "m": "Oyalanmak, sürmek"}, {"w": "Embrace", "m": "Kucaklamak"}, {"w": "Flourish", "m": "Serpilmek"}, {"w": "Ponder", "m": "Uzun uzun düşünmek"}, {"w": "Aurora", "m": "Kutup ışıkları"}, {"w": "Epoch", "m": "Çağ"}, {"w": "Bliss", "m": "Saf mutluluk"}, {"w": "Whimsical", "m": "Hoş bir şekilde tuhaf"}];
+let api, kelime = "", harfler = [], secili = [], seri = 0, cozulen = 0, kilit = false, son = [];
+function yeni(){
+  const maks = cozulen < 3 ? 6 : cozulen < 7 ? 8 : 20;
+  let aday = KELIMELER.filter(k => k.w.length <= maks && !son.includes(k.w));
+  if(!aday.length) aday = KELIMELER;
+  const k = aday[Math.floor(Math.random()*aday.length)];
+  son.push(k.w); if(son.length > 15) son.shift();
+  kelime = k.w.toLocaleUpperCase("en");
+  do { harfler = karistir([...kelime]); } while(harfler.join("") === kelime);
+  secili = []; kilit = false;
+  api.sahne.innerHTML = `<div class="ipucu"><div class="m">${k.m}</div><div class="k">${kelime.length} harfli İngilizce kelime</div></div>
+    <div class="yuvalar" id="yuva">${[...kelime].map(() => '<span class="yuva"></span>').join("")}</div>
+    <div class="harfler">${harfler.map((h, i) => `<button class="harf" data-i="${i}">${h}</button>`).join("")}</div>
+    <div class="arac"><button class="bk-d" id="sil">Son harfi sil</button><button class="bk-d" id="pas">Pas geç (−5)</button></div>`;
+}
+function yuvaCiz(){ api.sahne.querySelectorAll(".yuva").forEach((y, i) => y.textContent = secili[i] !== undefined ? harfler[secili[i]] : ""); }
+function harfSec(btn){
+  if(!api.calisiyor || kilit) return;
+  secili.push(+btn.dataset.i); btn.disabled = true; yuvaCiz();
+  if(secili.length < kelime.length) return;
+  const yaz = secili.map(i => harfler[i]).join(""), yv = document.getElementById("yuva");
+  kilit = true;
+  if(yaz === kelime){
+    seri++; cozulen++; api.seri(seri); yv.classList.add("dogru");
+    api.puanEkle(kelime.length*4 + Math.min(seri - 1, 5)*3, yv); setTimeout(yeni, 450);
+  } else {
+    seri = 0; api.seri(0); api.sars(yv);
+    setTimeout(() => { secili = []; yuvaCiz(); api.sahne.querySelectorAll(".harf").forEach(b => b.disabled = false); kilit = false; }, 500);
+  }
+}
+BaykusOyun({
+  id:"kelime", ad:"Kelime Avı", sure:60,
+  aciklama:"Türkçe anlamı verilen İngilizce kelimeyi karışık harflerden bul.",
+  nasil:["Harflere doğru sırayla tıkla.","Yanlış harf seçtiysen “Son harfi sil” ile geri al.","Uzun kelimeler daha çok puan getirir. Bilemediğinde pas geçebilirsin (−5)."],
+  kur(a){ api = a;
+    a.sahne.addEventListener("click", e => {
+      const h = e.target.closest(".harf"); if(h) return harfSec(h);
+      if(!api.calisiyor || kilit) return;
+      if(e.target.closest("#sil") && secili.length){ const i = secili.pop(); api.sahne.querySelector(`.harf[data-i="${i}"]`).disabled = false; yuvaCiz(); }
+      if(e.target.closest("#pas")){
+        kilit = true; seri = 0; api.seri(0); api.puanEkle(-5, e.target);
+        const yv = document.getElementById("yuva"); yv.classList.add("cevap");
+        yv.querySelectorAll(".yuva").forEach((y, i) => y.textContent = kelime[i]);
+        setTimeout(yeni, 900);
+      }
+    });
+    cozulen = 0; yeni(); kilit = true; },
+  basla(){ cozulen = 0; seri = 0; son = []; yeni(); },
+  bitti(){ kilit = true; }
+});
+</script>
+</body>
+</html>

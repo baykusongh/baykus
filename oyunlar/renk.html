@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Renk Tuzağı | Baykuş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ortak/oyun.css">
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
+<style>
+.kural{font-weight:600;color:var(--ink-soft);text-align:center;font-size:1.1rem}
+.kural b{color:var(--ink);font-size:1.25rem}
+.kart{width:min(100%,440px);padding:34px 10px;border-radius:22px;background:var(--surface);border:1.5px solid var(--surface-2);text-align:center}
+.kelime{font-weight:800;font-size:clamp(2.6rem,13vw,4.4rem);letter-spacing:.04em;line-height:1}
+.renkler{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:min(100%,520px)}
+.rb{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 4px;border-radius:16px;border:1.5px solid var(--surface-2);background:var(--surface);font-weight:700;font-size:.8rem;color:var(--ink-soft)}
+.rb:hover:not(:disabled){border-color:var(--gold)}
+.rb i{width:clamp(30px,9vw,44px);aspect-ratio:1;border-radius:50%;display:block}
+.rb.dogru{border-color:var(--good);box-shadow:0 0 0 2px var(--good) inset}
+.rb.yanlis{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad) inset}
+@media (max-width:380px){.rb{font-size:.68rem}}
+</style>
+</head>
+<body>
+<script>
+const RENK = [{ad:"KIRMIZI",c:"#e5484d"},{ad:"MAVİ",c:"#3e8ef7"},{ad:"YEŞİL",c:"#2f9e62"},{ad:"SARI",c:"#d9a400"},{ad:"MOR",c:"#8e4ec6"}];
+let api, kural = "renk", hedef = 0, sira = [0,1,2,3,4], dogruSay = 0, seri = 0, kilit = false;
+const r = n => Math.floor(Math.random()*n);
+function yeni(){
+  kural = dogruSay >= 8 && Math.random() < .4 ? "kelime" : "renk";
+  const yazi = r(5); let murekkep = r(5);
+  if(murekkep === yazi && Math.random() < .8) murekkep = (murekkep + 1 + r(4)) % 5;
+  hedef = kural === "renk" ? murekkep : yazi;
+  if(dogruSay >= 15) sira = karistir(sira);
+  api.sahne.innerHTML = `<div class="kural">${kural === "renk" ? "Yazının <b>RENGİNE</b> tıkla" : "Yazan <b>KELİMEYE</b> tıkla"}</div>
+    <div class="kart" id="kart"><div class="kelime" style="color:${RENK[murekkep].c}">${RENK[yazi].ad}</div></div>
+    <div class="renkler">${sira.map(i => `<button class="rb" data-i="${i}"><i style="background:${RENK[i].c}"></i>${RENK[i].ad}</button>`).join("")}</div>`;
+  kilit = false;
+}
+function sec(btn){
+  if(!api.calisiyor || kilit) return;
+  kilit = true;
+  if(+btn.dataset.i === hedef){
+    seri++; dogruSay++; api.seri(seri); btn.classList.add("dogru");
+    api.puanEkle(10 + Math.min(seri - 1, 5)*2 + (kural === "kelime" ? 5 : 0), btn); setTimeout(yeni, 180);
+  } else {
+    seri = 0; api.seri(0); btn.classList.add("yanlis");
+    api.sahne.querySelector(`.rb[data-i="${hedef}"]`).classList.add("dogru");
+    api.puanEkle(-10, btn); api.sars(document.getElementById("kart")); setTimeout(yeni, 650);
+  }
+}
+BaykusOyun({
+  id:"renk", ad:"Renk Tuzağı", sure:60,
+  aciklama:"Gözün kelimeyi okur, beynin rengi görür. Hangisine güveneceksin?",
+  nasil:["Üstteki kurala bak: çoğu zaman yazının rengine tıklaman gerekir.","8 doğrudan sonra kural bazen “yazan kelimeye tıkla” olarak değişir.","Doğru +10 ve seri bonusu, yanlış −10. 15 doğrudan sonra düğmelerin yeri karışır."],
+  kur(a){ api = a; a.sahne.addEventListener("click", e => { const b = e.target.closest(".rb"); if(b) sec(b); }); dogruSay = 0; yeni(); kilit = true; },
+  basla(){ dogruSay = 0; seri = 0; sira = [0,1,2,3,4]; yeni(); },
+  bitti(){ kilit = true; }
+});
+</script>
+</body>
+</html>

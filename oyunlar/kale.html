@@ -51,6 +51,8 @@ h2{margin:0;font-size:clamp(28px,3vw,46px);font-weight:700}
 .cost{font-weight:700;color:var(--amber)}
 .base{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center;margin:1rem 0 .4rem;color:var(--muted)}
 </style>
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
 </head>
 <body>
 <canvas id="cv"></canvas>
@@ -67,7 +69,7 @@ h2{margin:0;font-size:clamp(28px,3vw,46px);font-weight:700}
     <b>⏸ / 🔊</b><span>Sağ üstteki düğmelerle duraklat ve sesi aç/kapa</span>
   </div>
   <div class="btns" id="menuBtns"></div>
-  <div class="btns" style="margin-top:.6rem"><a class="btn" href="./">Oyunlara dön</a></div>
+  <div class="btns" style="margin-top:.6rem"><button class="btn" id="bSira">Sıralama</button><a class="btn" href="./">Oyunlara dön</a></div>
   <div class="sub" style="font-size:clamp(13px,1.1vw,17px);margin:.8rem 0 0">Her 10 dalgada bir kontrol noktası açılır. Oradan başlarsan sana hazırlık parçası verilir.</div>
 </div></div>
 
@@ -90,7 +92,7 @@ h2{margin:0;font-size:clamp(28px,3vw,46px);font-weight:700}
   <h2 style="color:var(--red)">KALE DÜŞTÜ</h2>
   <div class="sub" id="overInfo"></div>
   <div class="stats" id="overStats"></div>
-  <div class="btns"><button class="btn go" id="bAgain">Yeniden başla</button><button class="btn" id="bMenu">Menü</button></div>
+  <div class="btns"><button class="btn go" id="bSkor">Sıralamaya kaydet</button><button class="btn" id="bAgain">Yeniden başla</button><button class="btn" id="bMenu">Menü</button></div>
 </div></div>
 
 <script>
@@ -251,7 +253,7 @@ const UPS = [
   {id:"rocket",  n:"Roket Rampası",      d:"+2 kapasite, +%30 roket hasarı",           base:30,  max:10, gr:1.4},
   {id:"strike",  n:"Hava Desteği",       d:"Bar daha hızlı dolar, bombalar güçlenir",  base:40,  max:8,  gr:1.45},
   {id:"tesla",   n:"Tesla Bobini",       d:"Yakındaki düşmanlara zincirleme yıldırım", base:180, max:10, gr:1.45, unlock:8},
-  {id:"drone",   n:"Yardımcı Drone",     d:"Kaleyi koruyan, kendi ateş eden dronlar",  base:260, max:9,  gr:1.5,  unlock:12},
+  {id:"drone",   n:"Yardımcı Drone",     d:"Düşmanlara ateş eder, ödülleri vurup toplar",  base:260, max:9,  gr:1.5,  unlock:12},
   {id:"mine",    n:"Mayın Tarlası",      d:"Yere kendiliğinden mayın döşer",           base:320, max:8,  gr:1.5,  unlock:16},
   {id:"master",  n:"Ustalık",            d:"Tüm hasar +%10 (sınırsız)",                base:500, max:999,gr:1.22, unlock:20}
 ];
@@ -586,6 +588,12 @@ function nearest(x, y, maxD, skip){
   for(const e of enemies){ if(e.dead || (skip && skip.has(e))) continue; const b = box(e), d = Math.hypot(b.x + b.w/2 - x, b.y + b.h/2 - y); if(d < bd){ bd = d; best = e; } }
   return best;
 }
+// Dronların hedefleyeceği en yakın ödül (parça ya da sandık). Başka dronun az önce hedeflediğini atla.
+function nearestItem(x, y, maxD){
+  let best = null, bd = maxD;
+  for(const it of items){ if(it.got || it.dead || it.fly || (it.tgt && frame - it.tgt < 8)) continue; const d = Math.hypot(it.x - x, it.y - y); if(d < bd){ bd = d; best = it; } }
+  return best;
+}
 function updateSupport(){
   // tesla bobini
   if(up.tesla > 0 && frame % Math.max(24, 100 - up.tesla*8) === 0){
@@ -604,9 +612,22 @@ function updateSupport(){
   while(drones.length < want) drones.push({a:Math.random()*7, cd:0});
   drones.forEach((d, i) => {
     d.a += .02; d.x = PX + Math.cos(d.a + i*Math.PI*2/drones.length)*120; d.y = PY - 110 + Math.sin((d.a + i)*1.7)*22;
-    if(--d.cd <= 0){ const t = nearest(d.x, d.y, 620); if(t){ const b = box(t), an = Math.atan2(b.y + b.h/2 - d.y, b.x + b.w/2 - d.x);
-      bullets.push({x:d.x, y:d.y, vx:Math.cos(an)*20, vy:Math.sin(an)*20, dmg:bulletDmg()*.45*(1 + .15*up.drone), crit:false, pierce:0, hit:new Set(), life:60, col:"rgba(120,240,255,.95)", w:2, splash:0});
-      d.cd = 12; d.ta = an; } }
+    if(--d.cd <= 0){
+      // Sırayla: bir atış düşmana, bir atış yerdeki ödüle. Düşman yoksa hep ödüllere.
+      const it = nearestItem(d.x, d.y, 760), t = nearest(d.x, d.y, 620);
+      let tx, ty;
+      d.alt = !d.alt;
+      if(it && (!t || d.alt)){
+        const tt = Math.hypot(it.x - d.x, it.y - d.y)/20;
+        tx = it.x + (it.vx || 0)*tt; ty = Math.min(GY - 6, it.y + (it.vy || 0)*tt);
+        it.tgt = frame;
+      } else if(t){ const b = box(t); tx = b.x + b.w/2; ty = b.y + b.h/2; }
+      if(tx !== undefined){
+        const an = Math.atan2(ty - d.y, tx - d.x);
+        bullets.push({x:d.x, y:d.y, vx:Math.cos(an)*20, vy:Math.sin(an)*20, dmg:bulletDmg()*.45*(1 + .15*up.drone), crit:false, pierce:0, hit:new Set(), life:60, col:"rgba(120,240,255,.95)", w:2, splash:0});
+        d.cd = 12; d.ta = an;
+      }
+    }
   });
   // mayınlar
   if(up.mine > 0 && frame % Math.max(150, 480 - up.mine*35) === 0 && mines.length < 2 + up.mine){
@@ -1345,6 +1366,8 @@ $("#bResume").onclick = togglePause;
 $("#bAbandon").onclick = () => { best.wave = Math.max(best.wave, S.wave); persist(); menu(); };
 $("#bAgain").onclick = () => newGame(S.start);
 $("#bMenu").onclick = menu;
+$("#bSira").onclick = () => BaykusSkor.siralamaAc("kale", "Son Kale", true);
+$("#bSkor").onclick = () => BaykusSkor.skorKaydetAc("kale", "Son Kale", S.score, {koyu:true});
 
 /* ------------------------- girişler ------------------------- */
 function mpos(e){

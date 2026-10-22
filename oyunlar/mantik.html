@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Işıkları Söndür | Baykuş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ortak/oyun.css">
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
+<style>
+.bilgi{color:var(--ink-soft);display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-variant-numeric:tabular-nums}.bilgi b{color:var(--ink)}
+.izgara{display:grid;grid-template-columns:repeat(var(--n),1fr);gap:8px;width:min(100%,440px,calc(100dvh - 300px))}
+.isik{aspect-ratio:1;border-radius:12px;border:1.5px solid var(--surface-2);background:var(--surface);transition:background .15s,box-shadow .15s,border-color .15s}
+.isik.on{background:var(--gold);border-color:var(--gold);box-shadow:0 0 22px rgba(231,192,99,.55)}
+.isik:hover{border-color:var(--gold-line)}
+.izgara.coz .isik{background:var(--good);border-color:var(--good);box-shadow:none}
+</style>
+</head>
+<body>
+<script>
+let api, n = 3, grid = [], hamle = 0, hedef = 0, seviye = 0, kilit = false;
+function bas(i){
+  const x = i % n, y = Math.floor(i/n);
+  [[0,0],[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dy]) => { const X = x + dx, Y = y + dy; if(X >= 0 && X < n && Y >= 0 && Y < n) grid[Y*n + X] ^= 1; });
+}
+function yeni(){
+  n = [3, 3, 4, 4, 5][Math.min(seviye, 4)];
+  grid = Array(n*n).fill(0);
+  hedef = Math.min(n*n - 2, 2 + seviye);
+  karistir([...Array(n*n).keys()]).slice(0, hedef).forEach(bas);
+  if(grid.every(v => !v)) return yeni();
+  hamle = 0; kilit = false; ciz(true);
+}
+function ciz(tam){
+  if(tam){
+    api.sahne.innerHTML = `<div class="bilgi" id="bilgi"></div>
+      <div class="izgara" style="--n:${n}">${grid.map((v, i) => `<button class="isik" data-i="${i}" aria-label="Işık ${i + 1}"></button>`).join("")}</div>
+      <div class="arac"><button class="bk-d" id="pas">Pas geç (−10)</button></div>`;
+  }
+  api.sahne.querySelectorAll(".isik").forEach((b, i) => b.classList.toggle("on", !!grid[i]));
+  document.getElementById("bilgi").innerHTML = `<span>Bulmaca <b>${seviye + 1}</b></span><span>Hamle <b>${hamle}</b></span><span>Hedef <b>${hedef}</b></span>`;
+}
+function tikla(i){
+  if(!api.calisiyor || kilit) return;
+  bas(i); hamle++; ciz();
+  if(grid.every(v => !v)){
+    kilit = true;
+    const iz = api.sahne.querySelector(".izgara"); iz.classList.add("coz");
+    api.puanEkle(15*n + (hamle <= hedef ? 20 : 0), iz);
+    api.sureEkle(n >= 4 ? 4 : 2, iz);
+    seviye++; setTimeout(yeni, 600);
+  }
+}
+BaykusOyun({
+  id:"isik", ad:"Işıkları Söndür", sure:90,
+  aciklama:"90 saniyede olabildiğince çok bulmaca çöz.",
+  nasil:["Bir kareye tıklayınca o kare ve sağı, solu, üstü, altı değişir: yanıyorsa söner, sönükse yanar.","Bütün ışıkları söndür.","Hedef hamle sayısında ya da daha azında çözersen +20 bonus. Takılırsan pas geçebilirsin."],
+  kur(a){ api = a;
+    a.sahne.addEventListener("click", e => {
+      const b = e.target.closest(".isik"); if(b) return tikla(+b.dataset.i);
+      if(e.target.closest("#pas") && api.calisiyor && !kilit){ api.puanEkle(-10, e.target); yeni(); }
+    });
+    seviye = 0; yeni(); kilit = true; },
+  basla(){ seviye = 0; yeni(); },
+  bitti(){ kilit = true; }
+});
+</script>
+</body>
+</html>

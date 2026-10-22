@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hızlı Hesap | Baykuş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ortak/oyun.css">
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
+<style>
+.soru{font-family:var(--serif);font-weight:700;font-size:clamp(3rem,14vw,5.2rem);line-height:1;font-variant-numeric:tabular-nums;text-align:center}
+.seviye{color:var(--ink-faint);font-size:.9rem;margin-top:-6px}
+.cevaplar{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:min(100%,440px)}
+.cvp{font-size:1.7rem;font-weight:700;padding:18px 0;border-radius:16px;border:1.5px solid var(--gold-line);background:var(--surface);font-variant-numeric:tabular-nums}
+.cvp:hover:not(:disabled){border-color:var(--gold)}
+.cvp.dogru{background:var(--good);border-color:var(--good);color:#fff}
+.cvp.yanlis{background:var(--bad);border-color:var(--bad);color:#fff}
+</style>
+</head>
+<body>
+<script>
+let api, dogruSay = 0, seri = 0, cevap = 0, kilit = false;
+const r = (a, b) => a + Math.floor(Math.random()*(b - a + 1));
+function soruUret(){
+  const sev = Math.min(5, 1 + Math.floor(dogruSay/5));
+  let a, b, op;
+  const tip = sev === 1 ? "+" : sev === 2 ? (Math.random() < .5 ? "+" : "−") : sev === 3 ? "×" :
+              sev === 4 ? ["+", "−", "×"][r(0, 2)] : ["+", "−", "×", "÷"][r(0, 3)];
+  if(tip === "+"){ const m = sev < 4 ? 20 : 99; a = r(2, m); b = r(2, m); cevap = a + b; }
+  if(tip === "−"){ const m = sev < 4 ? 30 : 120; a = r(5, m); b = r(1, a - 1); cevap = a - b; }
+  if(tip === "×"){ const m = sev < 5 ? 9 : 12; a = r(2, m); b = r(2, m); cevap = a*b; }
+  if(tip === "÷"){ b = r(2, 12); cevap = r(2, 12); a = b*cevap; }
+  op = tip;
+  const sec = new Set([cevap]);
+  const yakin = tip === "×" ? [a, b, -a, -b, 1, -1, 10] : [1, -1, 2, -2, 10, -10, 3];
+  while(sec.size < 4){ const d = cevap + yakin[r(0, yakin.length - 1)]*(Math.random() < .2 ? 2 : 1); if(d >= 0) sec.add(d); }
+  api.sahne.innerHTML = `<div class="soru">${a} ${op} ${b}</div><div class="seviye">Seviye ${sev}</div>
+    <div class="cevaplar">${karistir([...sec]).map(v => `<button class="cvp" data-v="${v}">${v}</button>`).join("")}</div>`;
+  kilit = false;
+}
+function sec(btn){
+  if(!api.calisiyor || kilit) return;
+  kilit = true;
+  const ok = +btn.dataset.v === cevap;
+  if(ok){
+    seri++; dogruSay++; api.seri(seri); btn.classList.add("dogru");
+    api.puanEkle(10 + Math.min(seri - 1, 5)*2, btn); setTimeout(soruUret, 220);
+  } else {
+    seri = 0; api.seri(0); btn.classList.add("yanlis");
+    api.sahne.querySelector(`[data-v="${cevap}"]`).classList.add("dogru");
+    api.puanEkle(-5, btn); api.sars(api.sahne.querySelector(".soru")); setTimeout(soruUret, 700);
+  }
+}
+BaykusOyun({
+  id:"hesap", ad:"Hızlı Hesap", sure:60,
+  aciklama:"60 saniyede olabildiğince çok işlemi doğru çöz.",
+  nasil:["Doğru sonuca tıkla.","Doğru cevap +10, seri yaptıkça daha fazla. Yanlış cevap −5.","Her 5 doğruda seviye atlar: toplama, çıkarma, çarpma, sonra hepsi karışık ve bölme."],
+  kur(a){ api = a; a.sahne.addEventListener("click", e => { const b = e.target.closest(".cvp"); if(b) sec(b); }); dogruSay = 0; soruUret(); kilit = true; },
+  basla(){ dogruSay = 0; seri = 0; soruUret(); },
+  bitti(){ kilit = true; }
+});
+</script>
+</body>
+</html>

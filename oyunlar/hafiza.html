@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hafıza Kartları | Baykuş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ortak/oyun.css">
+<script src="ortak/ayarlar.js"></script>
+<script src="ortak/oyun.js"></script>
+<style>
+.tahta{display:grid;grid-template-columns:repeat(var(--kol),1fr);gap:10px;
+  width:min(100%,560px,calc((100dvh - 210px) * var(--kol) / var(--sat)))}
+.kart{aspect-ratio:1;border:none;padding:0;background:none;perspective:600px;position:relative}
+.kart .y{position:absolute;inset:0;border-radius:14px;display:grid;place-items:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;transition:transform .35s}
+.kart .arka{background:var(--surface);border:1.5px solid var(--gold-line)}
+.kart .arka::after{content:"";width:34%;aspect-ratio:1;border-radius:50%;border:1.5px solid var(--gold-line)}
+.kart .on{background:var(--surface-2);border:1.5px solid var(--gold);font-size:clamp(1.6rem,7vw,2.6rem);transform:rotateY(180deg)}
+.kart.acik .arka{transform:rotateY(-180deg)}
+.kart.acik .on{transform:rotateY(0)}
+.kart.bulundu .on{border-color:var(--good);opacity:.55}
+.kart:hover:not(.acik) .arka{border-color:var(--gold)}
+</style>
+</head>
+<body>
+<script>
+const SEMBOL = ["🦉","🌙","⭐","🔥","🍀","🎲","🎈","🍎","🐟","🌵","⚓","🎵","🍉","🚀","🐢","🌻"];
+let api, kartlar = [], acik = [], kilit = false, tur = 0, seri = 0;
+function yeniTahta(){
+  const cift = [6, 8, 10][Math.min(tur, 2)], kol = cift === 10 ? 5 : 4, sat = cift*2/kol;
+  const deste = karistir(karistir(SEMBOL).slice(0, cift).flatMap(s => [s, s]));
+  kartlar = deste.map(s => ({s, bulundu:false})); acik = []; kilit = false;
+  api.sahne.innerHTML = `<div class="tahta" style="--kol:${kol};--sat:${sat}">${deste.map((s, i) =>
+    `<button class="kart" data-i="${i}" aria-label="Kart ${i + 1}"><span class="y arka"></span><span class="y on">${s}</span></button>`).join("")}</div>`;
+}
+function tikla(btn){
+  const i = +btn.dataset.i, k = kartlar[i];
+  if(!api.calisiyor || kilit || k.bulundu || acik.includes(i)) return;
+  btn.classList.add("acik"); acik.push(i);
+  if(acik.length < 2) return;
+  const [a, b] = acik, ea = api.sahne.querySelector(`[data-i="${a}"]`), eb = btn;
+  if(kartlar[a].s === kartlar[b].s){
+    kartlar[a].bulundu = kartlar[b].bulundu = true; ea.classList.add("bulundu"); eb.classList.add("bulundu");
+    seri++; api.seri(seri); api.puanEkle(10 + Math.min(seri - 1, 4)*5, eb); acik = [];
+    if(kartlar.every(x => x.bulundu)){ tur++; api.puanEkle(30); api.sureEkle(5); kilit = true; setTimeout(yeniTahta, 550); }
+  } else {
+    seri = 0; api.seri(0); kilit = true;
+    setTimeout(() => { ea.classList.remove("acik"); eb.classList.remove("acik"); acik = []; kilit = false; }, 650);
+  }
+}
+BaykusOyun({
+  id:"hafiza", ad:"Hafıza Kartları", sure:60,
+  aciklama:"60 saniyede olabildiğince çok eşi bul.",
+  nasil:["Kartlara tıklayıp çevir, aynı iki resmi eşleştir.","Arka arkaya bulduğun her eş daha çok puan getirir.","Tahtayı bitirince +30 puan ve +5 saniye kazanırsın, yeni tahta daha büyük olur."],
+  kur(a){ api = a; a.sahne.addEventListener("click", e => { const b = e.target.closest(".kart"); if(b) tikla(b); }); tur = 0; yeniTahta(); },
+  basla(){ tur = 0; seri = 0; yeniTahta(); },
+  bitti(){ kilit = true; }
+});
+</script>
+</body>
+</html>
