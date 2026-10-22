@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Son Kale</title>
+<title>Son Kale | Baykuş</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
@@ -67,7 +67,7 @@ h2{margin:0;font-size:clamp(28px,3vw,46px);font-weight:700}
     <b>⏸ / 🔊</b><span>Sağ üstteki düğmelerle duraklat ve sesi aç/kapa</span>
   </div>
   <div class="btns" id="menuBtns"></div>
-  <div class="btns" style="margin-top:.6rem"><a class="btn" href="index.html">Baykuş’a dön</a></div>
+  <div class="btns" style="margin-top:.6rem"><a class="btn" href="./">Oyunlara dön</a></div>
   <div class="sub" style="font-size:clamp(13px,1.1vw,17px);margin:.8rem 0 0">Her 10 dalgada bir kontrol noktası açılır. Oradan başlarsan sana hazırlık parçası verilir.</div>
 </div></div>
 
@@ -292,6 +292,16 @@ const T = {
 };
 const NAMES = {boss:"KUŞATMA YÜRÜYENİ", zeplin:"KARA ZEPLİN", devtank:"DEV TANK"};
 const isBoss = e => e.type === "boss" || e.type === "zeplin" || e.type === "devtank";
+/* Uzayan dalga önlemi: dalga sonunda az düşman kalınca ve boss uzun yaşayınca hasar giderek artar */
+const STALL = 600;        // kuyruk bitip ≤3 düşman kalınca 10 sn sonra devreye girer
+const BOSS_STALL = 2700;  // boss 45 sn yaşarsa yorulmaya başlar
+const fatigue = e => {
+  let m = 1;
+  if(S.stallT > STALL) m += (S.stallT - STALL)/480;
+  if(isBoss(e) && e.age > BOSS_STALL) m += (e.age - BOSS_STALL)/480;
+  return m;
+};
+const rushing = () => !S.queue.length && enemies.length <= 3;
 
 let S, up, tur, enemies, bullets, rockets, eproj, items, parts, texts, corpses, ripples, strike, mines = [], bolts = [], drones = [];
 let state = "menu", frame = 0;
@@ -346,7 +356,7 @@ function startWave(){
     S.queue.splice(Math.min(4, S.queue.length), 0, k);
     if(n >= 30) S.queue.splice(Math.min(14, S.queue.length), 0, kinds[(n/5) % 3]);
   }
-  S.spawnT = 90; S.cleared = false;
+  S.spawnT = 90; S.cleared = false; S.stallT = 0;
   S.shield = maxShield();
   enemies = []; bullets = []; rockets = []; eproj = []; items = []; parts = []; texts = []; corpses = []; ripples = []; strike = null;
   mines = []; bolts = [];
@@ -361,7 +371,8 @@ function spawn(type, at){
   const eliteP = clamp((S.wave - 6)*.02, 0, .35) + (hasMod("elit") ? .3 : 0);
   const elite = !isBoss({type}) && type !== "para" && Math.random() < eliteP;
   if(elite) sc *= 2.4;
-  const e = {type, elite, hp:d.hp*sc, max:d.hp*sc, t:Math.random()*100, flash:0, cd:rnd(40, d.fire || 80), side, dir:-side, w:d.w, h:d.h};
+  if(isBoss({type}) && S.wave < 10) sc *= .6;
+  const e = {type, elite, hp:d.hp*sc, max:d.hp*sc, t:Math.random()*100, flash:0, age:0, cd:rnd(40, d.fire || 80), side, dir:-side, w:d.w, h:d.h};
   if(d.shieldHp) e.sh = e.shMax = d.shieldHp*sc;
   if(type === "para"){
     e.air = true; e.chute = true; e.y = -50;
@@ -442,7 +453,8 @@ function damage(e, dmg, crit, vx, explosive){
     return;
   }
   if(e.type !== "jammer" && enemies.some(j => j.type === "jammer" && !j.dead && Math.hypot(j.x - e.x, j.y - (e.air ? e.y : e.y - 20)) < 170)) dmg *= .5;
-  if(!explosive){ const arm = armorOf(e); if(arm > 0){ const before = dmg; dmg = Math.max(dmg*.2, dmg - arm); if(dmg < before*.5 && Math.random() < .15) sparks(e.x, (e.air ? e.y : e.y - e.h/2), 3, "#C9D3E0"); } }
+  if(!explosive){ const arm = armorOf(e); if(arm > 0){ const before = dmg; dmg = Math.max(dmg*.3, dmg - arm); if(dmg < before*.5 && Math.random() < .15) sparks(e.x, (e.air ? e.y : e.y - e.h/2), 3, "#C9D3E0"); } }
+  dmg *= fatigue(e);
   e.hp -= dmg; e.flash = 4;
   if(crit || e.max > 30) float((crit ? "✦" : "") + Math.round(dmg*10)/10, e.x + rnd(-10,10), (e.air ? e.y : e.y - e.h) - 6, crit ? "#FFE08A" : "#fff", crit ? 22 : 15);
   if(Math.random() < .3) SFX.hit();
@@ -459,6 +471,11 @@ function kill(e){
   else if(e.type === "runner"){ explode(e.x, e.y - 16, 1); SFX.boomS(); }
   else { if(!e.air) dust(e.x, GY); corpses.push({type:e.type, x:e.x, y:e.air ? e.y + e.h/2 : e.y, dir:e.dir, t:e.air ? -40 : 0}); }
   drops(e);
+  if(isBoss(e) && !S.queue.length && !enemies.some(o => o !== e && !o.dead && isBoss(o))){
+    const rest = enemies.filter(o => o !== e && !o.dead);
+    if(rest.length){ rest.forEach(o => kill(o)); }
+    S.banner = {t:"KOMUTAN DÜŞTÜ", s: rest.length ? "Kalan birlikler dağıldı" : "Dalga senin!", life:150};
+  }
 }
 function damageBase(d, x, y){
   S.lastHit = 0;
@@ -547,6 +564,10 @@ function update(){
     spawn(S.queue.shift());
     S.spawnT = Math.max(16, 72 - S.wave*3) * rnd(.6, 1.4);
   }
+  if(rushing() && enemies.length && !S.cleared){
+    S.stallT = (S.stallT || 0) + 1;
+    if(S.stallT === STALL) S.banner = {t:"DÜŞMAN SARSILDI", s:"Son birliklerin direnci kırılıyor, hasarın giderek artıyor", life:150};
+  } else S.stallT = 0;
   if(!S.queue.length && !enemies.length && !S.cleared){
     S.cleared = true; S.clearT = 330;
     S.banner = {t:"DALGA TEMİZLENDİ", s:"Yerdeki parçaları topla!", life:150};
@@ -618,11 +639,13 @@ function updateEnemies(){
   for(const e of enemies){
     if(e.dead) continue;
     const d = T[e.type];
-    e.t++; if(e.flash) e.flash--;
+    e.t++; e.age++; if(e.flash) e.flash--;
+    if(isBoss(e) && e.age === BOSS_STALL) S.banner = {t:NAMES[e.type] + " YORULDU", s:"Zırhı çatlıyor, hasarın giderek artıyor", life:150};
+    const rush = rushing() ? 2.5 : 1;
     const dist = Math.abs(e.x - PX);
     if(e.type === "para"){
       if(e.chute){
-        e.y += .95; e.x += Math.sin(e.t/40)*.4;
+        e.y += .95*(rush > 1 ? 3 : 1); e.x += Math.sin(e.t/40)*.4;
         if(e.y >= GY){ // indi: tüfekli askere dönüşür
           Object.assign(e, {type:"rifle", air:false, chute:false, y:GY, w:T.rifle.w, h:T.rifle.h, stop:rnd(...T.rifle.range), cd:rnd(40,100)});
           e.dir = e.x < PX ? 1 : -1; dust(e.x, GY);
@@ -638,10 +661,10 @@ function updateEnemies(){
       continue;
     }
     if(e.type === "jammer"){
-      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp, Math.abs(dx)); e.y = e.by + Math.sin(e.t/30)*8; continue;
+      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp*rush, Math.abs(dx)); e.y = e.by + Math.sin(e.t/30)*8; continue;
     }
     if(e.type === "zeplin"){
-      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp, Math.abs(dx)); e.y = e.by + Math.sin(e.t/60)*6;
+      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp*rush, Math.abs(dx)); e.y = e.by + Math.sin(e.t/60)*6;
       if(Math.abs(dx) < 40){
         if(--e.cd <= 0){ e.cd = d.fire; for(let i=0;i<3;i++) setTimeout(() => { if(state === "play" && !e.dead) enemyFire(e, "rocket", e.x + rnd(-80,80), e.y + 40, eDmg(d.dmg)); }, i*160); }
         if(e.t % 260 === 0) spawn("para", {x:e.x + rnd(-60,60)});
@@ -656,7 +679,7 @@ function updateEnemies(){
     }
     if(e.type === "drone"){
       if(!e.dive){
-        e.x += Math.sign(e.hoverX - e.x)*Math.min(d.sp*spdMul(), Math.abs(e.hoverX - e.x)); e.y = e.by + Math.sin(e.t/25)*14;
+        e.x += Math.sign(e.hoverX - e.x)*Math.min(d.sp*spdMul()*rush, Math.abs(e.hoverX - e.x)); e.y = e.by + Math.sin(e.t/25)*14;
         if(Math.abs(e.x - e.hoverX) < 4 && e.t > 60) e.dive = true;
       } else {
         const a = Math.atan2(PY - e.y, PX - e.x); e.x += Math.cos(a)*3.4; e.y += Math.sin(a)*3.4;
@@ -665,7 +688,7 @@ function updateEnemies(){
       continue;
     }
     if(e.type === "heli"){
-      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp, Math.abs(dx)); e.y = e.by + Math.sin(e.t/40)*10;
+      const dx = e.hoverX - e.x; e.x += Math.sign(dx)*Math.min(d.sp*rush, Math.abs(dx)); e.y = e.by + Math.sin(e.t/40)*10;
       e.tilt = clamp(dx*.004, -.15, .15) * e.dir;
       if(Math.abs(dx) < 30 && --e.cd <= 0){
         enemyFire(e, "rocket", e.x + e.dir*30, e.y + 14, eDmg(d.dmg));
@@ -676,7 +699,7 @@ function updateEnemies(){
       continue;
     }
     // yer birlikleri
-    if(dist > e.stop){ e.x += e.dir*d.sp*spdMul(); e.moving = true; }
+    if(dist > e.stop){ e.x += e.dir*Math.min(dist - e.stop, d.sp*spdMul()*rush); e.moving = true; }
     else {
       e.moving = false;
       if(--e.cd <= 0){
